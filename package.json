@@ -1,0 +1,15 @@
+{
+  "name": "driftboard",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "db:up": "docker compose up -d db",
+    "dev:server": "npm run dev -w @driftboard/server",
+    "dev:web": "npm run dev -w @driftboard/web",
+    "test": "npm test -w @driftboard/shared",
+    "convergence": "npm run convergence -w @driftboard/server"
+  }
+}

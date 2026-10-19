@@ -1,0 +1,48 @@
+# docker compose up  ->  Postgres + API (schema + seed) + web, all on localhost.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: driftboard
+      POSTGRES_PASSWORD: driftboard
+      POSTGRES_DB: driftboard
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U driftboard"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    environment:
+      DB_URL: postgresql://driftboard:driftboard@db:5432/driftboard
+      BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-to-a-long-random-string-0123456789}
+      BETTER_AUTH_URL: http://localhost:8787
+      JWT_SECRET: ${JWT_SECRET:-change-me-jwt-secret-0123456789}
+      WEB_ORIGIN: http://localhost:3000
+      PORT: "8787"
+    ports:
+      - "8787:8787"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8787
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+
+volumes:
+  pgdata:

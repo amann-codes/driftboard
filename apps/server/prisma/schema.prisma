@@ -1,0 +1,192 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DB_URL")
+}
+
+// ---------- Better Auth tables (shape required by better-auth's Prisma adapter) ----------
+
+model User {
+  id            String       @id
+  name          String
+  email         String       @unique
+  emailVerified Boolean      @default(false)
+  image         String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+  memberships   Membership[]
+
+  @@map("user")
+}
+
+model Session {
+  id        String   @id
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("session")
+}
+
+model Account {
+  id                    String    @id
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@map("account")
+}
+
+model Verification {
+  id         String    @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
+
+  @@map("verification")
+}
+
+// ---------- Driftboard ----------
+
+enum Role {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+model Organization {
+  id          String       @id @default(uuid())
+  name        String
+  createdAt   DateTime     @default(now())
+  memberships Membership[]
+  invites     Invite[]
+  projects    Project[]
+  boards      Board[]
+}
+
+model Membership {
+  id        String       @id @default(uuid())
+  orgId     String
+  userId    String
+  role      Role
+  createdAt DateTime     @default(now())
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+}
+
+// Invite link: /invite?token=<id>. Anyone signed in with the link joins with `role`.
+model Invite {
+  id        String       @id @default(uuid())
+  orgId     String
+  role      Role
+  createdBy String
+  expiresAt DateTime
+  revoked   Boolean      @default(false)
+  createdAt DateTime     @default(now())
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+}
+
+model Project {
+  id        String       @id @default(uuid())
+  orgId     String
+  name      String
+  createdAt DateTime     @default(now())
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  boards    Board[]
+}
+
+model Board {
+  id        String       @id @default(uuid())
+  orgId     String
+  projectId String
+  name      String
+  seq       Int          @default(0) // last committed op number for this board
+  createdAt DateTime     @default(now())
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  project   Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  columns   Column[]
+  cards     Card[]
+  ops       Op[]
+}
+
+model Column {
+  id      String  @id
+  boardId String
+  name    String
+  pos     String // fractional index key; compare with COLLATE "C" if you sort in SQL
+  deleted Boolean @default(false)
+  meta    Json    @default("{}") // per-field { hlc, by } of the last write
+  board   Board   @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
+}
+
+model Card {
+  id          String   @id
+  boardId     String
+  columnId    String
+  pos         String
+  title       String
+  description String   @default("")
+  assigneeId  String?
+  labels      String[]
+  dueDate     String? // "YYYY-MM-DD", no time zone surprises
+  archived    Boolean  @default(false)
+  createdBy   String
+  meta        Json     @default("{}")
+  updatedAt   DateTime @updatedAt
+  board       Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@index([boardId])
+}
+
+// The op log. One row per op the server has seen, committed or rejected.
+// opId UNIQUE is what makes a re-sent op apply exactly once.
+model Op {
+  id              String   @id @default(uuid())
+  opId            String   @unique
+  boardId         String
+  seq             Int? // null for rejected ops
+  status          String // 'committed' | 'rejected'
+  reason          String?
+  type            String
+  actorId         String
+  clientId        String
+  hlc             String
+  data            Json     @default("{}")
+  applied         Boolean  @default(true)
+  before          Json?
+  conflict        Json?
+  notice          String?
+  cardIds         String[] // cards this op touched, for card history
+  clientCreatedAt DateTime // when the user made the change (maybe offline)
+  receivedAt      DateTime // when it reached the server
+  board           Board    @relation(fields: [boardId], references: [id], onDelete: Cascade)
+
+  @@unique([boardId, seq])
+  @@index([boardId, seq])
+}

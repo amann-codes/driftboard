@@ -8,6 +8,7 @@
     "start": "tsx --env-file=.env src/index.ts",
     "db:push": "prisma db push",
     "db:seed": "tsx --env-file=.env src/seed.ts",
+    "vercel-build": "prisma generate && prisma db push --skip-generate && tsx src/seed.ts",
     "convergence": "tsx scripts/convergence.ts",
     "test": "npm run convergence"
   },

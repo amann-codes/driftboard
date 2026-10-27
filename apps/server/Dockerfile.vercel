@@ -1,0 +1,32 @@
+FROM node:20-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends openssl ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+# Copy workspace manifests and lockfile.
+COPY package.json package-lock.json ./
+COPY packages/shared/package.json packages/shared/package.json
+COPY apps/server/package.json apps/server/package.json
+COPY apps/web/package.json apps/web/package.json
+
+RUN npm ci --include=dev
+
+# Copy the monorepo source.
+COPY packages/shared packages/shared
+COPY apps/server apps/server
+
+# Generate Prisma Client without connecting to Neon.
+RUN DB_URL="postgresql://build:build@localhost:5432/build?schema=public" \
+    DB_URL_UNPOOLED="postgresql://build:build@localhost:5432/build?schema=public" \
+    npx prisma generate --schema=apps/server/prisma/schema.prisma
+
+ENV NODE_ENV=production
+ENV PORT=80
+
+EXPOSE 80
+
+# Start only the API. Database setup and seeding are separate steps.
+CMD ["./node_modules/.bin/tsx", "apps/server/src/index.ts"]

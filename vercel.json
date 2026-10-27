@@ -1,27 +1,40 @@
 {
-    "$schema": "https://openapi.vercel.sh/vercel.json",
-    "services": {
-        "server": {
-            "root": "apps/server",
-            "framework": "hono"
-        },
-        "web": {
-            "root": "apps/web",
-            "framework": "nextjs"
-        }
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "services": {
+    "server": {
+      "root": ".",
+      "runtime": "container",
+      "entrypoint": "apps/server/Dockerfile.vercel"
     },
-    "rewrites": [
-        {
-            "source": "/api/(.*)",
-            "destination": {
-                "service": "server"
-            }
-        },
-        {
-            "source": "/(.*)",
-            "destination": {
-                "service": "web"
-            }
-        }
-    ]
+    "web": {
+      "root": "apps/web",
+      "framework": "nextjs"
+    }
+  },
+  "rewrites": [
+    {
+      "source": "/api/(.*)",
+      "destination": {
+        "service": "server"
+      }
+    },
+    {
+      "source": "/ws",
+      "destination": {
+        "service": "server"
+      }
+    },
+    {
+      "source": "/health",
+      "destination": {
+        "service": "server"
+      }
+    },
+    {
+      "source": "/(.*)",
+      "destination": {
+        "service": "web"
+      }
+    }
+  ]
 }

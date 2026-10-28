@@ -1,6 +1,8 @@
 'use client';
-// Home: sign in / sign up (Better Auth), then your organizations, projects and boards.
+// Home: your organizations, projects and boards, with sign in when there is no session.
 import { useEffect, useState } from 'react';
+import AuthLayout from '@/components/auth/AuthLayout';
+import SignInForm from '@/components/auth/SignInForm';
 import { api, cachedMe, saveMe } from '@/lib/api';
 import { authClient } from '@/lib/auth-client';
 
@@ -39,7 +41,13 @@ export default function Home() {
   }, []);
 
   if (loading) return <div className="page">Loading…</div>;
-  if (!me) return <AuthForm onDone={load} />;
+  if (!me) {
+    return (
+      <AuthLayout>
+        <SignInForm onSuccess={load} />
+      </AuthLayout>
+    );
+  }
 
   return (
     <div className="page">
@@ -144,47 +152,3 @@ function CreateInline({ placeholder, label, onCreate }: { placeholder: string; l
   );
 }
 
-function AuthForm({ onDone }: { onDone: () => void }) {
-  const [mode, setMode] = useState<'in' | 'up'>('in');
-  const [name, setName] = useState('');
-  const [email, setEmail] = useState('owner@driftboard.dev');
-  const [password, setPassword] = useState('Driftboard123!');
-  const [error, setError] = useState('');
-
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    const res = mode === 'in' ? await authClient.signIn.email({ email, password }) : await authClient.signUp.email({ email, password, name });
-    if (res.error) setError(res.error.message ?? 'Failed');
-    else onDone();
-  };
-
-  return (
-    <div className="page" style={{ maxWidth: 420 }}>
-      <h1>Driftboard</h1>
-      <form className="card-box" onSubmit={submit}>
-        <h2 style={{ marginTop: 0 }}>{mode === 'in' ? 'Sign in' : 'Create account'}</h2>
-        {mode === 'up' && (
-          <>
-            <label className="field-label">Name</label>
-            <input value={name} onChange={e => setName(e.target.value)} required />
-          </>
-        )}
-        <label className="field-label">Email</label>
-        <input type="email" value={email} onChange={e => setEmail(e.target.value)} required />
-        <label className="field-label">Password</label>
-        <input type="password" value={password} onChange={e => setPassword(e.target.value)} required minLength={8} />
-        {error && <p style={{ color: 'var(--danger)' }}>{error}</p>}
-        <div className="row" style={{ marginTop: 12 }}>
-          <button className="primary" type="submit">
-            {mode === 'in' ? 'Sign in' : 'Sign up'}
-          </button>
-          <button type="button" onClick={() => setMode(mode === 'in' ? 'up' : 'in')}>
-            {mode === 'in' ? 'Need an account?' : 'Have an account?'}
-          </button>
-        </div>
-        <p className="muted">Seeded users: owner@ / editor@ / viewer@driftboard.dev, password Driftboard123!</p>
-      </form>
-    </div>
-  );
-}

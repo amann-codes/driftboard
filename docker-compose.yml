@@ -22,6 +22,7 @@ services:
       dockerfile: apps/server/Dockerfile
     environment:
       DB_URL: postgresql://driftboard:driftboard@db:5432/driftboard
+      DB_URL_UNPOOLED: postgresql://driftboard:driftboard@db:5432/driftboard
       BETTER_AUTH_SECRET: ${BETTER_AUTH_SECRET:-change-me-to-a-long-random-string-0123456789}
       BETTER_AUTH_URL: http://localhost:8787
       JWT_SECRET: ${JWT_SECRET:-change-me-jwt-secret-0123456789}

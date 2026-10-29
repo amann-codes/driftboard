@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { authClient } from '@/lib/auth-client';
+import { currentReturnPath, withReturnPath } from '@/lib/return-to';
+import { useReturnTo } from '@/lib/use-return-to';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -41,6 +43,7 @@ function friendlyError(message?: string) {
 }
 
 export default function SignUpForm() {
+  const returnTo = useReturnTo();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -91,7 +94,7 @@ export default function SignUpForm() {
         setServerError(friendlyError(result.error.message));
         return;
       }
-      window.location.assign('/');
+      window.location.assign(currentReturnPath());
     } catch {
       setServerError("We couldn't reach the server. Check your connection and try again.");
     } finally {
@@ -272,7 +275,7 @@ export default function SignUpForm() {
       <p className="mt-6 text-center text-sm text-drift-body">
         Already have an account?{' '}
         <a
-          href="/signin/"
+          href={withReturnPath('/signin/', returnTo)}
           className="rounded-sm font-medium text-drift-accent transition hover:text-drift-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-drift-accent focus-visible:ring-offset-2"
         >
           Sign in

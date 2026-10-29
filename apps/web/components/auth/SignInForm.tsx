@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { authClient } from '@/lib/auth-client';
+import { currentReturnPath, withReturnPath } from '@/lib/return-to';
+import { useReturnTo } from '@/lib/use-return-to';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -37,6 +39,7 @@ function friendlyError(message?: string) {
 }
 
 export default function SignInForm({ onSuccess }: { onSuccess?: () => void }) {
+  const returnTo = useReturnTo();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -81,7 +84,7 @@ export default function SignInForm({ onSuccess }: { onSuccess?: () => void }) {
       if (onSuccess) {
         onSuccess();
       } else {
-        window.location.assign('/');
+        window.location.assign(currentReturnPath());
       }
     } catch {
       setServerError("We couldn't reach the server. Check your connection and try again.");
@@ -223,7 +226,7 @@ export default function SignInForm({ onSuccess }: { onSuccess?: () => void }) {
       <p className="mt-6 text-center text-sm text-drift-body">
         New to Driftboard?{' '}
         <a
-          href="/signup/"
+          href={withReturnPath('/signup/', returnTo)}
           className="rounded-sm font-medium text-drift-accent transition hover:text-drift-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-drift-accent focus-visible:ring-offset-2"
         >
           Create an account

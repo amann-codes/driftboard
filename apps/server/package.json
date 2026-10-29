@@ -10,6 +10,7 @@
     "db:seed": "tsx --env-file=.env src/seed.ts",
     "vercel-build": "prisma generate && prisma db push --skip-generate && tsx src/seed.ts",
     "convergence": "tsx scripts/convergence.ts",
+    "test:workspace": "tsx --env-file=.env scripts/workspace-smoke.ts",
     "test": "npm run convergence"
   },
   "dependencies": {

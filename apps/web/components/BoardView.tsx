@@ -114,7 +114,7 @@ export default function BoardView({ boardId }: { boardId: string }) {
     return (
       <div className="page">
         <p>{b.error || 'Could not load board.'}</p>
-        <a href="/">Back</a>
+        <a href="/dashboard/">Back to dashboard</a>
       </div>
     );
   }
@@ -209,7 +209,7 @@ export default function BoardView({ boardId }: { boardId: string }) {
   return (
     <div className="board-shell">
       <div className="topbar">
-        <a href="/">←</a>
+        <a href="/dashboard/" aria-label="Back to dashboard">←</a>
         <h1>{view.name}</h1>
         <span className="pill">{b.meta?.role}</span>
         <span className="spacer" />

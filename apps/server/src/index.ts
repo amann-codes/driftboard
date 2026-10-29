@@ -8,6 +8,7 @@ import { prisma } from './db';
 import { heartbeat, join, leave } from './realtime';
 import { boardRoutes } from './routes/boards';
 import { orgRoutes, roleIn } from './routes/orgs';
+import { workspaceRoutes } from './routes/workspace';
 
 const app = new Hono<AppEnv>();
 const { injectWebSocket, upgradeWebSocket } = createNodeWebSocket({ app });
@@ -25,6 +26,7 @@ app.use('/api/*', requireUser);
 
 app.get('/api/ws-token', async c => c.json({ token: await issueWsToken(c.get('user')) }));
 app.route('/api', orgRoutes);
+app.route('/api', workspaceRoutes);
 app.route('/api', boardRoutes);
 
 // WebSocket: /ws?boardId=...&token=...

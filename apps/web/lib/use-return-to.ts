@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { currentReturnPath } from './return-to';
 
-export function useReturnTo(fallback = '/') {
+export function useReturnTo(fallback = '/dashboard/') {
   const [returnTo, setReturnTo] = useState(fallback);
 
   useEffect(() => {

@@ -2,8 +2,8 @@
 // - Pages (navigations): network first, fall back to the cached copy.
 // - Built JS/CSS (/_next/static, hashed filenames): cache first, they never change.
 // - API calls are NOT cached here; board data lives in IndexedDB (lib/idb.ts).
-const CACHE = 'driftboard-v2';
-const SHELL = ['/', '/board/', '/invite/'];
+const CACHE = 'driftboard-v3';
+const SHELL = ['/', '/dashboard/', '/organizations/', '/board/', '/invite/', '/signin/', '/signup/'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));

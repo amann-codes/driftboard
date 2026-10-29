@@ -1,4 +1,4 @@
-const FALLBACK = '/';
+const FALLBACK = '/dashboard/';
 
 export function safeReturnPath(candidate: string | null, fallback = FALLBACK) {
   if (!candidate) return fallback;

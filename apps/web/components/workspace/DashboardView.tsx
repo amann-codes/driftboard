@@ -5,10 +5,11 @@ import { saveMe } from '@/lib/api';
 import { useApiResource } from '@/lib/use-api-resource';
 import type { DashboardData } from '@/lib/workspace';
 import { canManage, greetingFor } from '@/lib/workspace';
+import { cachedDashboard, saveDashboardCache } from '@/lib/workspace-cache';
 import CreateBoardDialog from './CreateBoardDialog';
 import CreateOrganizationDialog from './CreateOrganizationDialog';
 import CreateProjectDialog from './CreateProjectDialog';
-import { PlusIcon } from './icons';
+import { PlusIcon, RefreshIcon } from './icons';
 import { BoardCard, EmptyState, OrganizationCard, ProjectRow, SectionHeader } from './WorkspaceCards';
 import WorkspaceShell from './WorkspaceShell';
 import { DashboardSkeleton, PageError } from './WorkspaceStates';
@@ -18,14 +19,23 @@ import { ToastProvider, useToast } from './Toast';
 type DialogName = 'organization' | 'project' | 'board' | null;
 
 function DashboardPage() {
-  const { data, status, error, reload } = useApiResource<DashboardData>('/api/dashboard');
+  const { data: liveData, status, error, reload } = useApiResource<DashboardData>('/api/dashboard');
+  const [cached, setCached] = useState<DashboardData | null>(null);
   const [dialog, setDialog] = useState<DialogName>(null);
   const [boardContext, setBoardContext] = useState<{ orgId?: string; projectId?: string }>({});
   const toast = useToast();
+  const data = liveData ?? (status === 'error' ? cached : null);
+  const offline = !liveData && Boolean(data);
 
   useEffect(() => {
-    if (data) saveMe({ user: data.user });
-  }, [data]);
+    setCached(cachedDashboard());
+  }, []);
+
+  useEffect(() => {
+    if (!liveData) return;
+    saveMe({ user: liveData.user });
+    saveDashboardCache(liveData);
+  }, [liveData]);
 
   const openBoard = (context: { orgId?: string; projectId?: string } = {}) => {
     setBoardContext(context);
@@ -48,8 +58,8 @@ function DashboardPage() {
 
   const organizations = data?.organizations ?? [];
   const manageableOrganizations = organizations.filter(organization => canManage(organization.role));
-  const canCreateBoard = manageableOrganizations.some(organization => organization.projects.length > 0);
-  const canCreateProject = manageableOrganizations.length > 0;
+  const canCreateBoard = !offline && manageableOrganizations.some(organization => organization.projects.length > 0);
+  const canCreateProject = !offline && manageableOrganizations.length > 0;
   const projects = organizations
     .flatMap(organization =>
       organization.projects.map(project => ({
@@ -61,7 +71,13 @@ function DashboardPage() {
 
   let headerAction = <span className="h-10 w-28 animate-pulse rounded-lg bg-slate-100" aria-hidden />;
   if (data) {
-    if (canCreateBoard) {
+    if (offline) {
+      headerAction = (
+        <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
+          Offline
+        </span>
+      );
+    } else if (canCreateBoard) {
       headerAction = (
         <button type="button" onClick={() => openBoard()} className={PRIMARY_BUTTON}>
           <PlusIcon className="size-4" />
@@ -98,6 +114,7 @@ function DashboardPage() {
       <PageError
         message={error || "We couldn't load your workspace. Check your connection and try again."}
         onRetry={() => void reload()}
+        backHref={null}
       />,
     );
   }
@@ -105,6 +122,56 @@ function DashboardPage() {
   if (!data) return shell(<DashboardSkeleton />);
 
   const summary = `${data.totals.organizations} organization${data.totals.organizations === 1 ? '' : 's'} · ${data.totals.projects} project${data.totals.projects === 1 ? '' : 's'} · ${data.totals.boards} board${data.totals.boards === 1 ? '' : 's'}`;
+
+  const recentBoardsSection = (
+    <section aria-labelledby="recent-boards">
+      <SectionHeader
+        id="recent-boards"
+        title="Recent boards"
+        description="Boards you and your team updated most recently."
+        action={
+          offline ? undefined : (
+            <a href="/organizations/" className={`${SECONDARY_BUTTON} h-9 px-3 text-xs`}>
+              Browse organizations
+            </a>
+          )
+        }
+      />
+      {data.recentBoards.length > 0 ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {data.recentBoards.map(board => (
+            <BoardCard key={board.id} board={board} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          title="No boards yet"
+          description={
+            offline
+              ? 'No boards are cached on this device yet. Reconnect to browse your workspace.'
+              : canCreateBoard
+                ? 'Create a board inside one of your projects and it will appear here.'
+                : canCreateProject
+                  ? 'Create a project first, then add a board to it.'
+                  : 'You have view-only access. A project editor or owner can add the first board.'
+          }
+          action={
+            canCreateBoard ? (
+              <button type="button" onClick={() => openBoard()} className={PRIMARY_BUTTON}>
+                <PlusIcon className="size-4" />
+                New board
+              </button>
+            ) : canCreateProject ? (
+              <button type="button" onClick={() => setDialog('project')} className={PRIMARY_BUTTON}>
+                <PlusIcon className="size-4" />
+                Create project
+              </button>
+            ) : undefined
+          }
+        />
+      )}
+    </section>
+  );
 
   return shell(
     <div className="space-y-9">
@@ -119,11 +186,28 @@ function DashboardPage() {
             : 'Here is what is moving across your teams. Open a board to pick up where you left off.'}
         </p>
         {data.totals.organizations > 0 && <p className="mt-4 text-xs font-medium text-drift-muted">{summary}</p>}
+        {offline && (
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+            <p role="status">
+              You&apos;re offline. Showing your last synced workspace. Only boards you opened before are available until you reconnect.
+            </p>
+            <button type="button" onClick={() => void reload()} className={`${SECONDARY_BUTTON} h-8 px-3 text-xs`}>
+              <RefreshIcon className="size-3.5" />
+              Try again
+            </button>
+          </div>
+        )}
       </section>
 
-      {organizations.length === 0 ? (
+      {offline ? (
+        recentBoardsSection
+      ) : organizations.length === 0 ? (
         <section aria-labelledby="getting-started">
-          <SectionHeader title="Getting started" description="Your workspace is ready for its first organization." />
+          <SectionHeader
+            id="getting-started"
+            title="Getting started"
+            description="Your workspace is ready for its first organization."
+          />
           <EmptyState
             title="Create your first organization"
             description="Organizations hold projects and boards, and let you invite teammates with the right role."
@@ -137,51 +221,11 @@ function DashboardPage() {
         </section>
       ) : (
         <>
-          <section aria-labelledby="recent-boards">
-            <SectionHeader
-              title="Recent boards"
-              description="Boards you and your team updated most recently."
-              action={
-                <a href="/organizations/" className={`${SECONDARY_BUTTON} h-9 px-3 text-xs`}>
-                  Browse organizations
-                </a>
-              }
-            />
-            {data.recentBoards.length > 0 ? (
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                {data.recentBoards.map(board => (
-                  <BoardCard key={board.id} board={board} />
-                ))}
-              </div>
-            ) : (
-              <EmptyState
-                title="No boards yet"
-                description={
-                  canCreateBoard
-                    ? 'Create a board inside one of your projects and it will appear here.'
-                    : canCreateProject
-                      ? 'Create a project first, then add a board to it.'
-                      : 'You have view-only access. A project editor or owner can add the first board.'
-                }
-                action={
-                  canCreateBoard ? (
-                    <button type="button" onClick={() => openBoard()} className={PRIMARY_BUTTON}>
-                      <PlusIcon className="size-4" />
-                      New board
-                    </button>
-                  ) : canCreateProject ? (
-                    <button type="button" onClick={() => setDialog('project')} className={PRIMARY_BUTTON}>
-                      <PlusIcon className="size-4" />
-                      Create project
-                    </button>
-                  ) : undefined
-                }
-              />
-            )}
-          </section>
+          {recentBoardsSection}
 
           <section aria-labelledby="organizations">
             <SectionHeader
+              id="organizations"
               title="Organizations"
               description="The teams and spaces you belong to."
               action={
@@ -189,10 +233,12 @@ function DashboardPage() {
                   <a href="/organizations/" className={`${SECONDARY_BUTTON} h-9 px-3 text-xs`}>
                     View all
                   </a>
-                  <button type="button" onClick={() => setDialog('organization')} className={`${SECONDARY_BUTTON} h-9 px-3 text-xs`}>
-                    <PlusIcon className="size-3.5" />
-                    New
-                  </button>
+                  {!offline && (
+                    <button type="button" onClick={() => setDialog('organization')} className={`${SECONDARY_BUTTON} h-9 px-3 text-xs`}>
+                      <PlusIcon className="size-3.5" />
+                      New
+                    </button>
+                  )}
                 </div>
               }
             />
@@ -210,6 +256,7 @@ function DashboardPage() {
 
           <section aria-labelledby="projects">
             <SectionHeader
+              id="projects"
               title="Projects"
               description="A quick view across your organizations."
               action={

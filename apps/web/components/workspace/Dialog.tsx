@@ -11,7 +11,7 @@ type DialogProps = {
   title: string;
   description?: string;
   busy?: boolean;
-  size?: 'md' | 'lg';
+  size?: 'md' | 'lg' | 'xl';
   initialFocusRef?: RefObject<HTMLElement | null>;
   children: ReactNode;
 };
@@ -68,7 +68,7 @@ export default function Dialog({
         if (event.target === event.currentTarget && !busy) onClose();
       }}
       className={`m-auto max-h-[calc(100dvh-2rem)] w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-drift-line bg-white p-0 text-drift-ink shadow-[0_30px_90px_rgba(15,23,42,0.25)] backdrop:bg-slate-950/40 backdrop:backdrop-blur-[2px] ${
-        size === 'lg' ? 'max-w-xl' : 'max-w-lg'
+        size === 'xl' ? 'max-w-3xl' : size === 'lg' ? 'max-w-xl' : 'max-w-lg'
       }`}
     >
       <div className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 sm:p-6">
@@ -88,7 +88,7 @@ export default function Dialog({
             onClick={onClose}
             disabled={busy}
             aria-label="Close dialog"
-            className={`-mr-1 -mt-1 grid size-9 shrink-0 place-items-center rounded-lg text-drift-muted transition hover:bg-slate-100 hover:text-drift-ink disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
+            className={`-mr-1 -mt-1 grid size-9 shrink-0 place-items-center rounded-lg border-0 bg-transparent text-drift-muted transition hover:bg-slate-100 hover:text-drift-ink disabled:cursor-not-allowed disabled:opacity-40 ${FOCUS_RING}`}
           >
             <CloseIcon />
           </button>

@@ -1,12 +1,16 @@
 'use client';
-// Card details: edit every field, see who else is editing, see edits of yours that lost
-// a conflict (with "use mine"), and the card's activity log.
-import { useEffect, useState } from 'react';
-import { Card, CommittedOp, OpInput, SyncClient, prettyField } from '@driftboard/shared';
+
+import { useEffect, useRef, useState } from 'react';
+import { Card, CommittedOp, OpInput, SyncClient, describeOp, prettyField } from '@driftboard/shared';
 import { api } from '@/lib/api';
 import type { Member } from '@/lib/use-board';
+import { tintFor } from '@/lib/workspace';
 import Avatar from './Avatar';
+import Dialog from './workspace/Dialog';
+import { CloseIcon, PlusIcon } from './workspace/icons';
+import { DANGER_BUTTON, FIELD_LABEL, FOCUS_RING, INPUT, SECONDARY_BUTTON } from './workspace/styles';
 import Markdown from './Markdown';
+import { ArchiveIcon, RestoreIcon } from './board/icons';
 
 type Props = {
   boardId: string;
@@ -22,28 +26,59 @@ type Props = {
 
 type HistoryRow = CommittedOp & { actorName: string };
 
-const show = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : typeof v === 'string' ? v : JSON.stringify(v));
+const show = (value: unknown) => {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'boolean') return value ? 'yes' : 'no';
+  if (typeof value === 'string') return value;
+  return JSON.stringify(value);
+};
 
-export default function CardModal({ boardId, card, client, members, readOnly, online, editors, run, onClose }: Props) {
+export default function CardModal({
+  boardId,
+  card,
+  client,
+  members,
+  readOnly,
+  online,
+  editors,
+  run,
+  onClose,
+}: Props) {
   const [title, setTitle] = useState(card.title);
   const [desc, setDesc] = useState(card.description);
-  const [tab, setTab] = useState<'preview' | 'write'>('preview');
+  const [tab, setTab] = useState<'preview' | 'write'>(card.description ? 'preview' : 'write');
   const [label, setLabel] = useState('');
   const [history, setHistory] = useState<HistoryRow[] | null>(null);
+  const [historyError, setHistoryError] = useState('');
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
 
-  // Someone else's change arrives while the modal is open: refresh the inputs we're not typing in.
   useEffect(() => {
     if (document.activeElement?.id !== 'card-title') setTitle(card.title);
   }, [card.title]);
+
   useEffect(() => {
     if (document.activeElement?.id !== 'card-desc') setDesc(card.description);
   }, [card.description]);
 
   useEffect(() => {
     if (!online) return;
+    let cancelled = false;
+    setHistoryLoading(true);
+    setHistoryError('');
     api<HistoryRow[]>(`/api/boards/${boardId}/cards/${card.id}/history`)
-      .then(setHistory)
-      .catch(() => setHistory(null));
+      .then(rows => {
+        if (!cancelled) setHistory(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setHistoryError("We couldn't load this card's activity.");
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [boardId, card.id, online, client.confirmed.seq]);
 
   const set = (field: 'title' | 'description' | 'assigneeId' | 'dueDate' | 'archived', value: unknown) => {
@@ -51,186 +86,316 @@ export default function CardModal({ boardId, card, client, members, readOnly, on
     run({ type: 'card.set', cardId: card.id, field, value });
   };
 
-  const nameOf = (id: string) => members.find(m => m.id === id)?.name ?? 'Someone';
-  const lost = client.lostEdits.filter(l => l.cardId === card.id);
-  const myPending = client.pending.filter(p => (p as any).cardId === card.id);
+  const nameOf = (id: string) => members.find(member => member.id === id)?.name ?? 'Someone';
+  const lost = client.lostEdits.filter(edit => edit.cardId === card.id);
+  const myPending = client.pending.filter(op => (op as any).cardId === card.id);
 
   return (
-    <div className="backdrop" onMouseDown={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal">
-        <div className="row">
-          {card.archived && <span className="pill" style={{ background: '#ffe3e3' }}>Archived</span>}
-          <span className="spacer" />
-          {editors.map(u => (
-            <span key={u.userId} className="row muted" style={{ gap: 4 }}>
-              <Avatar id={u.userId} name={u.name} /> editing
-            </span>
-          ))}
-          <button onClick={onClose}>Close</button>
-        </div>
-
-        <input
-          id="card-title"
-          style={{ fontSize: 20, fontWeight: 700, border: 'none', padding: '8px 0' }}
-          value={title}
-          disabled={readOnly}
-          onChange={e => setTitle(e.target.value)}
-          onBlur={() => (title.trim() ? set('title', title.trim()) : setTitle(card.title))}
-          onKeyDown={e => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-        />
-
-        {lost.map(l => (
-          <div key={l.seq} className="conflict">
-            <strong>Your {prettyField(l.field)} edit was replaced</strong> by {nameOf(l.winnerId)}&apos;s newer edit.
-            <div className="muted">Your version: {show(l.loserValue)}</div>
-            <div className="row" style={{ marginTop: 6 }}>
-              {!readOnly && ['title', 'description', 'assigneeId', 'dueDate'].includes(l.field) && (
-                <button
-                  onClick={() => {
-                    set(l.field as any, l.loserValue);
-                    client.dismissLostEdit(l.seq);
-                  }}
-                >
-                  Use mine
-                </button>
-              )}
-              <button onClick={() => client.dismissLostEdit(l.seq)}>Dismiss</button>
-            </div>
-          </div>
-        ))}
-
-        <div className="grid2">
-          <div>
-            <label className="field-label">Assignee</label>
-            <select value={card.assigneeId ?? ''} disabled={readOnly} onChange={e => set('assigneeId', e.target.value || null)}>
-              <option value="">Unassigned</option>
-              {members.map(m => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
+    <Dialog
+      open
+      onClose={onClose}
+      title="Card details"
+      size="xl"
+      initialFocusRef={readOnly ? undefined : titleRef}
+    >
+      <div className="flex flex-wrap items-center gap-2">
+        {card.archived && (
+          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-drift-muted">
+            Archived
+          </span>
+        )}
+        {myPending.length > 0 && (
+          <span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-semibold text-amber-700">
+            {myPending.length} change{myPending.length === 1 ? '' : 's'} pending
+          </span>
+        )}
+        {lost.length > 0 && (
+          <span className="rounded-full bg-red-50 px-2.5 py-1 text-[10px] font-semibold text-red-700">
+            {lost.length} replaced edit{lost.length === 1 ? '' : 's'}
+          </span>
+        )}
+        {editors.length > 0 && (
+          <span className="ml-auto inline-flex items-center gap-1.5 text-xs text-drift-muted">
+            <span className="flex -space-x-1">
+              {editors.map(editor => (
+                <span key={editor.userId} className="rounded-full ring-2 ring-white" title={`${editor.name} is editing`}>
+                  <Avatar id={editor.userId} name={editor.name} className="size-5 text-[8px]" />
+                </span>
               ))}
-            </select>
-          </div>
-          <div>
-            <label className="field-label">Due date</label>
-            <input type="date" value={card.dueDate ?? ''} disabled={readOnly} onChange={e => set('dueDate', e.target.value || null)} />
+            </span>
+            editing now
+          </span>
+        )}
+      </div>
+
+      {readOnly ? (
+        <h2 className="mt-3 text-xl font-semibold tracking-[-0.02em] text-drift-ink [overflow-wrap:anywhere]">{card.title}</h2>
+      ) : (
+        <input
+          ref={titleRef}
+          id="card-title"
+          value={title}
+          maxLength={200}
+          aria-label="Card title"
+          onChange={event => setTitle(event.target.value)}
+          onBlur={() => (title.trim() ? set('title', title.trim()) : setTitle(card.title))}
+          onKeyDown={event => {
+            if (event.key === 'Enter') {
+              event.preventDefault();
+              event.currentTarget.blur();
+            }
+          }}
+          className="mt-3 w-full rounded-lg border border-transparent bg-transparent px-2 py-1 text-xl font-semibold tracking-[-0.02em] text-drift-ink outline-none transition hover:border-drift-line focus:border-drift-accent focus:bg-white focus:ring-2 focus:ring-drift-accent/20"
+        />
+      )}
+
+      {lost.map(edit => (
+        <div key={edit.seq} className="mt-3 rounded-xl border border-red-200 bg-red-50/80 p-3 text-sm">
+          <p className="font-medium text-red-900">
+            Your {prettyField(edit.field)} edit was replaced by {nameOf(edit.winnerId)}&apos;s newer edit.
+          </p>
+          <p className="mt-1 text-xs leading-5 text-red-800">Your version: {show(edit.loserValue)}</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {!readOnly && ['title', 'description', 'assigneeId', 'dueDate'].includes(edit.field) && (
+              <button
+                type="button"
+                onClick={() => {
+                  set(edit.field as 'title' | 'description' | 'assigneeId' | 'dueDate', edit.loserValue);
+                  client.dismissLostEdit(edit.seq);
+                }}
+                className={`${SECONDARY_BUTTON} h-8 px-3 text-xs`}
+              >
+                Use mine
+              </button>
+            )}
+            <button type="button" onClick={() => client.dismissLostEdit(edit.seq)} className={`${SECONDARY_BUTTON} h-8 px-3 text-xs`}>
+              Dismiss
+            </button>
           </div>
         </div>
+      ))}
 
-        <label className="field-label">Labels</label>
-        <div className="row">
-          {card.labels.map(l => (
-            <span key={l} className="label">
-              {l}{' '}
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="card-assignee" className={FIELD_LABEL}>
+            Assignee
+          </label>
+          <select
+            id="card-assignee"
+            value={card.assigneeId ?? ''}
+            disabled={readOnly}
+            onChange={event => set('assigneeId', event.target.value || null)}
+            className={`${INPUT} mt-2 disabled:bg-slate-50 disabled:text-drift-muted`}
+          >
+            <option value="">Unassigned</option>
+            {members.map(member => (
+              <option key={member.id} value={member.id}>
+                {member.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label htmlFor="card-due-date" className={FIELD_LABEL}>
+            Due date
+          </label>
+          <input
+            id="card-due-date"
+            type="date"
+            value={card.dueDate ?? ''}
+            disabled={readOnly}
+            onChange={event => set('dueDate', event.target.value || null)}
+            className={`${INPUT} mt-2 disabled:bg-slate-50 disabled:text-drift-muted`}
+          />
+        </div>
+      </div>
+
+      <div className="mt-5">
+        <p className={FIELD_LABEL}>Labels</p>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {card.labels.length === 0 && <span className="text-xs text-drift-muted">No labels yet.</span>}
+          {card.labels.map(item => (
+            <span key={item} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1 ${tintFor(item)}`}>
+              {item}
               {!readOnly && (
-                <a href="#" onClick={e => (e.preventDefault(), run({ type: 'card.label', cardId: card.id, label: l, on: false }))}>
-                  ×
-                </a>
+                <button
+                  type="button"
+                  onClick={() => run({ type: 'card.label', cardId: card.id, label: item, on: false })}
+                  aria-label={`Remove label ${item}`}
+                  className={`grid size-4 place-items-center rounded-full border-0 bg-transparent p-0 transition hover:bg-black/5 ${FOCUS_RING}`}
+                >
+                  <CloseIcon className="size-3" />
+                </button>
               )}
             </span>
           ))}
           {!readOnly && (
             <form
-              onSubmit={e => {
-                e.preventDefault();
-                if (label.trim()) run({ type: 'card.label', cardId: card.id, label: label.trim(), on: true });
+              className="inline-flex items-center gap-1"
+              onSubmit={event => {
+                event.preventDefault();
+                const next = label.trim();
+                if (next) run({ type: 'card.label', cardId: card.id, label: next, on: true });
                 setLabel('');
               }}
             >
-              <input style={{ width: 140 }} placeholder="add label" value={label} onChange={e => setLabel(e.target.value)} />
+              <input
+                value={label}
+                maxLength={32}
+                aria-label="Add label"
+                placeholder="Add label"
+                onChange={event => setLabel(event.target.value)}
+                className="h-8 w-28 rounded-lg border border-dashed border-slate-300 bg-white px-2.5 text-xs text-drift-ink outline-none placeholder:text-slate-400 focus:border-drift-accent focus:ring-2 focus:ring-drift-accent/20"
+              />
+              <button type="submit" disabled={!label.trim()} aria-label="Add label" className="grid size-8 place-items-center rounded-lg border-0 bg-transparent p-0 text-drift-muted transition hover:bg-slate-100 hover:text-drift-ink disabled:opacity-40">
+                <PlusIcon className="size-4" />
+              </button>
             </form>
           )}
         </div>
+      </div>
 
-        <label className="field-label">Description (Markdown)</label>
-        {!readOnly && (
-          <div className="row tabs" style={{ marginBottom: 6 }}>
-            <button className={tab === 'write' ? 'active' : ''} onClick={() => setTab('write')}>
-              Write
-            </button>
-            <button className={tab === 'preview' ? 'active' : ''} onClick={() => setTab('preview')}>
-              Preview
-            </button>
-          </div>
-        )}
-        {tab === 'write' && !readOnly ? (
-          <textarea id="card-desc" rows={12} value={desc} onChange={e => setDesc(e.target.value)} onBlur={() => set('description', desc)} />
-        ) : (
-          <Markdown text={card.description} />
-        )}
-
-        {!readOnly && (
-          <div className="row" style={{ marginTop: 16 }}>
-            {card.archived ? (
-              <button onClick={() => set('archived', false)}>Restore card</button>
-            ) : (
-              <button className="danger" onClick={() => set('archived', true)}>
-                Archive card
-              </button>
-            )}
-          </div>
-        )}
-
-        <div className="history">
-          <strong>Activity</strong>
-          {myPending.length > 0 && (
-            <ul>
-              {myPending.map(p => (
-                <li key={p.opId} className="unsynced">
-                  Not synced yet: {p.type} (made {new Date(p.createdAt).toLocaleString()})
-                </li>
+      <div className="mt-6 border-t border-drift-line pt-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className={FIELD_LABEL}>Description</p>
+          {!readOnly && (
+            <div className="inline-flex rounded-lg bg-slate-100 p-0.5">
+              {(['write', 'preview'] as const).map(mode => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setTab(mode)}
+                  aria-pressed={tab === mode}
+                  className={`rounded-md border-0 bg-transparent px-3 py-1.5 text-xs font-medium capitalize transition ${
+                    tab === mode ? 'bg-white text-drift-ink shadow-sm' : 'text-drift-muted hover:text-drift-ink'
+                  } ${FOCUS_RING}`}
+                >
+                  {mode}
+                </button>
               ))}
-            </ul>
-          )}
-          {!online && <p className="muted">History loads when you are online.</p>}
-          {history && (
-            <ul>
-              {[...history].reverse().map(h => (
-                <li key={h.seq}>
-                  <HistoryLine h={h} nameOf={nameOf} />
-                </li>
-              ))}
-            </ul>
+            </div>
           )}
         </div>
+
+        {!readOnly && tab === 'write' ? (
+          <textarea
+            id="card-desc"
+            rows={9}
+            value={desc}
+            maxLength={20000}
+            aria-label="Card description"
+            placeholder="Add context, links, checklists, or notes…"
+            onChange={event => setDesc(event.target.value)}
+            onBlur={() => set('description', desc)}
+            className="mt-3 w-full resize-y rounded-xl border border-drift-line bg-white px-3.5 py-3 text-sm leading-6 text-drift-ink outline-none transition placeholder:text-slate-400 focus:border-drift-accent focus:ring-2 focus:ring-drift-accent/20"
+          />
+        ) : (
+          <div className="mt-3 min-h-24 rounded-xl border border-drift-line bg-slate-50/70 px-4 py-3">
+            <Markdown text={desc} />
+          </div>
+        )}
       </div>
-    </div>
+
+      {!readOnly && (
+        <div className="mt-6 flex flex-wrap items-center gap-2 border-t border-drift-line pt-5">
+          {card.archived ? (
+            <button type="button" onClick={() => set('archived', false)} className={`${SECONDARY_BUTTON} h-9 px-3 text-xs`}>
+              <RestoreIcon className="size-3.5" />
+              Restore card
+            </button>
+          ) : (
+            <button type="button" onClick={() => set('archived', true)} className={`${DANGER_BUTTON} h-9 px-3 text-xs`}>
+              <ArchiveIcon className="size-3.5" />
+              Archive card
+            </button>
+          )}
+        </div>
+      )}
+
+      <section aria-labelledby="card-activity-heading" className="mt-6 border-t border-drift-line pt-5">
+        <div className="flex items-baseline justify-between gap-2">
+          <h3 id="card-activity-heading" className="text-sm font-semibold text-drift-ink">
+            Activity
+          </h3>
+          {!online && <span className="text-[11px] text-drift-muted">History loads when you reconnect.</span>}
+        </div>
+
+        {myPending.length > 0 && (
+          <ul className="mt-3 space-y-2">
+            {myPending.map(op => (
+              <li key={op.opId} className="rounded-lg bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
+                Not synced yet: {describeOp(op, client.view)} · made {new Date(op.createdAt).toLocaleString()}
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {online && historyLoading && !history && (
+          <div className="mt-3 space-y-2" aria-label="Loading card activity">
+            <div className="h-10 animate-pulse rounded-lg bg-slate-100" />
+            <div className="h-10 animate-pulse rounded-lg bg-slate-100" />
+          </div>
+        )}
+
+        {online && historyError && !historyLoading && (
+          <p className="mt-3 text-xs text-drift-muted">{historyError}</p>
+        )}
+
+        {history && history.length === 0 && <p className="mt-3 text-xs text-drift-muted">No activity yet.</p>}
+
+        {history && history.length > 0 && (
+          <ol className="mt-3 space-y-3">
+            {[...history].reverse().map(row => (
+              <HistoryLine key={row.seq} row={row} nameOf={nameOf} />
+            ))}
+          </ol>
+        )}
+      </section>
+    </Dialog>
   );
 }
 
-function HistoryLine({ h, nameOf }: { h: HistoryRow; nameOf: (id: string) => string }) {
-  const made = new Date(h.createdAt);
-  const received = new Date(h.receivedAt);
-  // More than 10s between "made" and "reached server" = it was made offline (or on a very slow link).
-  const offline = h.receivedAt - h.createdAt > 10_000;
+function HistoryLine({ row, nameOf }: { row: HistoryRow; nameOf: (id: string) => string }) {
+  const made = new Date(row.createdAt);
+  const received = new Date(row.receivedAt);
+  const offline = row.receivedAt - row.createdAt > 10_000;
   let what: string;
-  switch (h.type) {
+
+  switch (row.type) {
     case 'card.create':
-      what = `created the card "${h.data.title}"`;
+      what = `created the card “${row.data.title}”`;
       break;
     case 'card.set':
-      what = `changed ${prettyField(h.data.field)} from "${show(h.before)}" to "${show(h.data.value)}"`;
+      what = `changed ${prettyField(row.data.field)} from “${show(row.before)}” to “${show(row.data.value)}”`;
       break;
     case 'card.label':
-      what = `${h.data.on ? 'added' : 'removed'} label "${h.data.label}"`;
+      what = `${row.data.on ? 'added' : 'removed'} label “${row.data.label}”`;
       break;
     case 'card.move':
       what = 'moved the card';
       break;
     case 'column.delete':
-      what = 'deleted its column (card archived)';
+      what = 'deleted its list and archived the card';
       break;
     default:
-      what = h.type;
+      what = row.type;
   }
+
   return (
-    <span>
-      <strong>{h.actorName}</strong> {what}
-      {!h.applied && ' (lost to a newer edit)'}
-      {h.conflict && h.applied && ` (replaced ${nameOf(h.conflict.loserId)}'s "${show(h.conflict.loserValue)}")`}
-      <div className="muted">
-        {offline ? `made offline ${made.toLocaleString()} · reached server ${received.toLocaleString()}` : received.toLocaleString()}
+    <li className="flex gap-2.5">
+      <Avatar id={row.actorId} name={row.actorName} className="mt-0.5 size-6 shrink-0 text-[9px]" />
+      <div className="min-w-0 text-xs leading-5 text-drift-body">
+        <p>
+          <strong className="font-semibold text-drift-ink">{row.actorName}</strong> {what}
+          {!row.applied && ' (lost to a newer edit)'}
+          {row.conflict && row.applied && ` (replaced ${nameOf(row.conflict.loserId)}'s “${show(row.conflict.loserValue)}”)`}
+        </p>
+        <p className="mt-0.5 text-[10px] text-drift-muted">
+          {offline
+            ? `Made offline ${made.toLocaleString()} · reached server ${received.toLocaleString()}`
+            : received.toLocaleString()}
+        </p>
       </div>
-    </span>
+    </li>
   );
 }

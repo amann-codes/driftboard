@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ApiError, api } from '@/lib/api';
 import { currentReturnPath, withReturnPath } from '@/lib/return-to';
+import { cachedDashboard, clearWorkspaceCache } from '@/lib/workspace-cache';
 import Brand from '@/components/workspace/Brand';
 import { RefreshIcon } from '@/components/workspace/icons';
 import { PRIMARY_BUTTON, SECONDARY_BUTTON } from '@/components/workspace/styles';
@@ -25,8 +26,12 @@ export default function Home() {
       } catch (error) {
         if (!active) return;
         if (error instanceof ApiError && error.status === 401) {
-          localStorage.removeItem('driftboard.me');
+          clearWorkspaceCache();
           window.location.replace(withReturnPath('/signin/', currentReturnPath('/dashboard/')));
+          return;
+        }
+        if (cachedDashboard()) {
+          window.location.replace('/dashboard/');
           return;
         }
         setState('error');

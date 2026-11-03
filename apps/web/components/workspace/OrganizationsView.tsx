@@ -150,7 +150,12 @@ function OrganizationDetailPage({ organizationId }: { organizationId: string }) 
 
   useEffect(() => {
     if (!data || !window.location.hash.startsWith('#project-')) return;
-    const targetId = decodeURIComponent(window.location.hash.slice(1));
+    let targetId: string;
+    try {
+      targetId = decodeURIComponent(window.location.hash.slice(1));
+    } catch {
+      return;
+    }
     const frame = requestAnimationFrame(() => {
       document.getElementById(targetId)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
     });
@@ -280,6 +285,7 @@ function OrganizationDetailPage({ organizationId }: { organizationId: string }) 
 
       <section aria-labelledby="organization-projects">
         <SectionHeader
+          id="organization-projects"
           title="Projects"
           description={
             canEdit

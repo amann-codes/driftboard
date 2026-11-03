@@ -12,7 +12,15 @@ const STORAGE_SCHEMA = 1;
 
 export type Member = { id: string; name: string; role: Role };
 export type PresenceUser = { userId: string; name: string; editing: string[] };
-type BoardMeta = { role: Role; orgId: string; members: Member[] };
+export type WebSocketStatus = 'offline' | 'connecting' | 'live' | 'reconnecting';
+type BoardMeta = {
+  role: Role;
+  orgId: string;
+  projectId?: string;
+  orgName?: string;
+  projectName?: string;
+  members: Member[];
+};
 type Stored = ClientSnapshot & { meta: BoardMeta; schema: number };
 
 export function useBoard(boardId: string) {
@@ -24,6 +32,8 @@ export function useBoard(boardId: string) {
   const [netOnline, setNetOnline] = useState(true);
   const [simOffline, setSimOffline] = useState(false);
   const [authLost, setAuthLost] = useState(false);
+  const [wsStatus, setWsStatus] = useState<WebSocketStatus>('offline');
+  const [syncError, setSyncError] = useState('');
 
   const clientRef = useRef<SyncClient | null>(null);
   const undoRef = useRef<UndoManager | null>(null);
@@ -70,15 +80,33 @@ export function useBoard(boardId: string) {
       try {
         const snap = await api(`/api/boards/${boardId}`);
         confirmed = snap.state;
-        meta = { role: snap.role, orgId: snap.orgId, members: snap.members };
+        meta = {
+          role: snap.role,
+          orgId: snap.orgId,
+          projectId: snap.projectId,
+          orgName: snap.orgName,
+          projectName: snap.projectName,
+          members: snap.members,
+        };
+        setSyncError('');
       } catch (e) {
         if (e instanceof ApiError && e.status === 401 && stored) setAuthLost(true);
         else if (e instanceof ApiError && e.status !== 401) {
-          setError(e.message);
+          setError(
+            e.status === 404
+              ? 'This board does not exist, or you no longer have access to it.'
+              : e.status === 403
+                ? 'You do not have access to this board.'
+                : 'We could not load this board. Try again in a moment.',
+          );
           return setStatus('error');
         }
         if (!confirmed || !meta) {
-          setError(e instanceof ApiError && e.status === 401 ? 'Please sign in first.' : 'This board has not been opened on this device yet. Open it once while online.');
+          setError(
+            e instanceof ApiError && e.status === 401
+              ? 'Please sign in to open this board.'
+              : 'This board has not been opened on this device yet. Open it once while online.',
+          );
           return setStatus('error');
         }
       }
@@ -103,10 +131,25 @@ export function useBoard(boardId: string) {
         transport: async req => {
           if (!onlineRef.current) throw new Error('offline');
           try {
-            return await api(`/api/boards/${boardId}/sync`, { method: 'POST', body: JSON.stringify(req) });
+            const result = await api(`/api/boards/${boardId}/sync`, {
+              method: 'POST',
+              body: JSON.stringify(req),
+            });
+            setSyncError('');
+            return result;
           } catch (e) {
-            if (e instanceof ApiError && e.status === 401) setAuthLost(true);
-            if (e instanceof ApiError && e.status === 403) notify({ kind: 'rejected', message: e.message });
+            if (e instanceof ApiError && e.status === 401) {
+              setAuthLost(true);
+              setSyncError('Your session expired. Sign in again to sync changes.');
+            } else if (e instanceof ApiError && e.status === 403) {
+              notify({ kind: 'rejected', message: e.message });
+            } else {
+              setSyncError(
+                e instanceof ApiError
+                  ? e.message
+                  : "We couldn't reach the server. Your changes are saved on this device.",
+              );
+            }
             throw e;
           }
         },
@@ -154,11 +197,13 @@ export function useBoard(boardId: string) {
     if (status !== 'ready' || !effectiveOnline) {
       wsRef.current?.close();
       setPresence([]);
+      setWsStatus('offline');
       return;
     }
     let stopped = false;
     let heartbeat: ReturnType<typeof setInterval> | undefined;
     let retry: ReturnType<typeof setTimeout> | undefined;
+    setWsStatus('connecting');
 
     const connect = async () => {
       try {
@@ -168,9 +213,10 @@ export function useBoard(boardId: string) {
         wsRef.current = ws;
         const beat = () => ws.readyState === WebSocket.OPEN && ws.send(JSON.stringify({ t: 'presence', editing: editingRef.current }));
         ws.onopen = () => {
+          setWsStatus('live');
           beat();
           heartbeat = setInterval(beat, 3000);
-          void clientRef.current?.flush(); // catch up on anything missed while disconnected
+          void clientRef.current?.flush();
         };
         ws.onmessage = ev => {
           const msg = JSON.parse(ev.data);
@@ -179,10 +225,16 @@ export function useBoard(boardId: string) {
         };
         ws.onclose = () => {
           clearInterval(heartbeat);
-          if (!stopped) retry = setTimeout(connect, 2000);
+          if (!stopped) {
+            setWsStatus('reconnecting');
+            retry = setTimeout(connect, 2000);
+          }
         };
       } catch {
-        if (!stopped) retry = setTimeout(connect, 3000);
+        if (!stopped) {
+          setWsStatus('reconnecting');
+          retry = setTimeout(connect, 3000);
+        }
       }
     };
     void connect();
@@ -219,6 +271,8 @@ export function useBoard(boardId: string) {
     simOffline,
     setSimOffline,
     authLost,
+    wsStatus,
+    syncError,
     setEditing,
   };
 }

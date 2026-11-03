@@ -110,7 +110,7 @@ export function PageError({
   title?: string;
   message: string;
   onRetry: () => void;
-  backHref?: string;
+  backHref?: string | null;
   backLabel?: string;
 }) {
   return (
@@ -125,9 +125,11 @@ export function PageError({
           <RefreshIcon className="size-4" />
           Try again
         </button>
-        <a href={backHref} className={SECONDARY_BUTTON}>
-          {backLabel}
-        </a>
+        {backHref && (
+          <a href={backHref} className={SECONDARY_BUTTON}>
+            {backLabel}
+          </a>
+        )}
       </div>
     </div>
   );

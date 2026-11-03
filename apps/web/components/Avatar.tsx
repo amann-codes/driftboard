@@ -7,7 +7,17 @@ export function colorFor(id: string) {
   return COLORS[h % COLORS.length];
 }
 
-export default function Avatar({ id, name, title }: { id: string; name: string; title?: string }) {
+export default function Avatar({
+  id,
+  name,
+  title,
+  className = '',
+}: {
+  id: string;
+  name: string;
+  title?: string;
+  className?: string;
+}) {
   const initials = name
     .split(/\s+/)
     .map(p => p[0])
@@ -15,7 +25,7 @@ export default function Avatar({ id, name, title }: { id: string; name: string; 
     .slice(0, 2)
     .toUpperCase();
   return (
-    <span className="avatar" style={{ background: colorFor(id) }} title={title ?? name}>
+    <span className={`avatar ${className}`} style={{ background: colorFor(id) }} title={title ?? name}>
       {initials || '?'}
     </span>
   );

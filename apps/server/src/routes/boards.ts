@@ -11,10 +11,26 @@ import { roleIn } from './orgs';
 export const boardRoutes = new Hono<AppEnv>();
 
 async function boardAccess(boardId: string, userId: string) {
-  const board = await prisma.board.findUnique({ where: { id: boardId }, select: { orgId: true } });
+  const board = await prisma.board.findUnique({
+    where: { id: boardId },
+    select: {
+      orgId: true,
+      projectId: true,
+      org: { select: { name: true } },
+      project: { select: { name: true } },
+    },
+  });
   if (!board) return null;
   const role = await roleIn(board.orgId, userId);
-  return role ? { orgId: board.orgId, role } : null;
+  return role
+    ? {
+        orgId: board.orgId,
+        projectId: board.projectId,
+        orgName: board.org.name,
+        projectName: board.project.name,
+        role,
+      }
+    : null;
 }
 
 // Full current state. The client caches it in IndexedDB for offline use.
@@ -26,7 +42,15 @@ boardRoutes.get('/boards/:boardId', async c => {
     loadBoardState(prisma, boardId),
     prisma.membership.findMany({ where: { orgId: access.orgId }, include: { user: { select: { id: true, name: true } } } }),
   ]);
-  return c.json({ state, role: access.role, orgId: access.orgId, members: members.map(m => ({ id: m.user.id, name: m.user.name, role: m.role })) });
+  return c.json({
+    state,
+    role: access.role,
+    orgId: access.orgId,
+    projectId: access.projectId,
+    orgName: access.orgName,
+    projectName: access.projectName,
+    members: members.map(m => ({ id: m.user.id, name: m.user.name, role: m.role })),
+  });
 });
 
 const syncBody = z.object({ sinceSeq: z.number().int().min(0), ops: z.array(z.unknown()).max(100) });

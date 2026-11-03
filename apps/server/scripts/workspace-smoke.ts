@@ -78,6 +78,16 @@ type OrgDetail = Organization & {
   projects: { id: string; name: string; boards: { id: string; name: string; lastActivityAt: string }[] }[];
 };
 
+type BoardSnapshot = {
+  role: string;
+  orgId: string;
+  projectId: string;
+  orgName: string;
+  projectName: string;
+  state: { id: string; name: string };
+  members: { id: string; name: string; role: string }[];
+};
+
 async function main() {
   const ownerCookie = await signUp('Workspace Smoke Owner', emails[0]);
   const otherCookie = await signUp('Workspace Smoke Other', emails[1]);
@@ -127,6 +137,14 @@ async function main() {
   assert(detail.response.status === 200, 'organization detail should load for a member');
   assert(detail.body.projects[0]?.boards[0]?.id === createdBoard.body.id, 'organization detail should include the board');
   assert(Number.isFinite(Date.parse(detail.body.projects[0].boards[0].lastActivityAt)), 'board detail should have a real activity timestamp');
+
+  const snapshot = await call<BoardSnapshot>(ownerCookie, `/api/boards/${createdBoard.body.id}`);
+  assert(snapshot.response.status === 200, 'board snapshot should load for a member');
+  assert(snapshot.body.role === 'OWNER', 'board snapshot should include the member role');
+  assert(snapshot.body.orgId === orgId && snapshot.body.projectId === createdProject.body.id, 'board snapshot should include its organization and project');
+  assert(snapshot.body.orgName === orgName && snapshot.body.projectName === 'Smoke Project', 'board snapshot should include breadcrumb names');
+  assert(snapshot.body.state.id === createdBoard.body.id, 'board snapshot should include the board state');
+  assert(snapshot.body.members.some(member => member.role === 'OWNER'), 'board snapshot should include member roles');
 
   const otherDashboard = await call<Dashboard>(otherCookie, '/api/dashboard');
   assert(otherDashboard.body.organizations.length === 0, 'other user should not see the organization');

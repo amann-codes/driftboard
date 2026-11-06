@@ -33,6 +33,11 @@ const show = (value: unknown) => {
   return JSON.stringify(value);
 };
 
+const preview = (value: unknown) => {
+  const text = show(value);
+  return text.length > 140 ? `${text.slice(0, 140)}…` : text;
+};
+
 export default function CardModal({
   boardId,
   card,
@@ -344,7 +349,7 @@ export default function CardModal({
         {history && history.length === 0 && <p className="mt-3 text-xs text-drift-muted">No activity yet.</p>}
 
         {history && history.length > 0 && (
-          <ol className="mt-3 space-y-3">
+          <ol className="mt-3 space-y-2.5">
             {[...history].reverse().map(row => (
               <HistoryLine key={row.seq} row={row} nameOf={nameOf} />
             ))}
@@ -366,7 +371,7 @@ function HistoryLine({ row, nameOf }: { row: HistoryRow; nameOf: (id: string) =>
       what = `created the card “${row.data.title}”`;
       break;
     case 'card.set':
-      what = `changed ${prettyField(row.data.field)} from “${show(row.before)}” to “${show(row.data.value)}”`;
+      what = `changed ${prettyField(row.data.field)} from “${preview(row.before)}” to “${preview(row.data.value)}”`;
       break;
     case 'card.label':
       what = `${row.data.on ? 'added' : 'removed'} label “${row.data.label}”`;
@@ -382,15 +387,15 @@ function HistoryLine({ row, nameOf }: { row: HistoryRow; nameOf: (id: string) =>
   }
 
   return (
-    <li className="flex gap-2.5">
-      <Avatar id={row.actorId} name={row.actorName} className="mt-0.5 size-6 shrink-0 text-[9px]" />
+    <li className="flex gap-2">
+      <Avatar id={row.actorId} name={row.actorName} className="size-6 shrink-0 text-[9px]" />
       <div className="min-w-0 text-xs leading-5 text-drift-body">
         <p>
           <strong className="font-semibold text-drift-ink">{row.actorName}</strong> {what}
           {!row.applied && ' (lost to a newer edit)'}
-          {row.conflict && row.applied && ` (replaced ${nameOf(row.conflict.loserId)}'s “${show(row.conflict.loserValue)}”)`}
+          {row.conflict && row.applied && ` (replaced ${nameOf(row.conflict.loserId)}'s “${preview(row.conflict.loserValue)}”)`}
         </p>
-        <p className="mt-0.5 text-[10px] text-drift-muted">
+        <p className="mt-0.5 text-[10px] leading-4 text-drift-muted">
           {offline
             ? `Made offline ${made.toLocaleString()} · reached server ${received.toLocaleString()}`
             : received.toLocaleString()}

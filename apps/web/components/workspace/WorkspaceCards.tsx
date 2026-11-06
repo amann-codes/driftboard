@@ -49,15 +49,15 @@ export function OrganizationCard({ org }: { org: OrganizationSummary }) {
       className={`group block ${CARD} ${CARD_HOVER} p-5 ${FOCUS_RING}`}
     >
       <div className="flex items-start gap-3">
-        <span className={`grid size-11 shrink-0 place-items-center rounded-xl text-sm font-bold ring-1 ${tint}`}>
+        <span className={`grid size-10 shrink-0 place-items-center rounded-lg text-xs font-bold ring-1 ${tint}`}>
           {initialsFor(org.name)}
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
-            <h3 className="truncate text-[15px] font-semibold text-drift-ink">{org.name}</h3>
+            <h3 className="truncate text-base font-semibold tracking-[-0.01em] text-drift-ink">{org.name}</h3>
             <ArrowRightIcon className="mt-0.5 size-4 shrink-0 text-slate-300 transition group-hover:translate-x-0.5 group-hover:text-drift-accent" />
           </div>
-          <div className="mt-2 flex items-center gap-2">
+          <div className="mt-1.5 flex items-center gap-2">
             <RoleBadge role={org.role} />
             <span className="text-xs text-drift-muted">{org.memberCount} member{org.memberCount === 1 ? '' : 's'}</span>
           </div>
@@ -143,8 +143,8 @@ export function ProjectRow({
         <FolderIcon className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-drift-ink">{project.name}</p>
-        <p className="truncate text-xs text-drift-muted">{organization.name}</p>
+        <p className="truncate text-sm font-medium leading-5 text-drift-ink">{project.name}</p>
+        <p className="mt-0.5 truncate text-xs leading-4 text-drift-muted">{organization.name}</p>
       </div>
       <span className="hidden shrink-0 text-xs text-drift-muted sm:block">
         {project.boardCount} board{project.boardCount === 1 ? '' : 's'}
@@ -165,14 +165,14 @@ export function OrgProjectCard({
 }) {
   return (
     <div id={`project-${project.id}`} className={`${CARD} scroll-mt-24 p-5`}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 items-start gap-3">
-          <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-500">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-slate-100 text-slate-500">
             <FolderIcon className="size-[18px]" />
           </span>
           <div className="min-w-0">
-            <h3 className="truncate text-sm font-semibold text-drift-ink">{project.name}</h3>
-            <p className="mt-0.5 text-xs text-drift-muted">
+            <h3 className="truncate text-base font-semibold tracking-[-0.01em] text-drift-ink">{project.name}</h3>
+            <p className="mt-0.5 text-xs leading-4 text-drift-muted">
               {project.boardCount} board{project.boardCount === 1 ? '' : 's'}
             </p>
           </div>

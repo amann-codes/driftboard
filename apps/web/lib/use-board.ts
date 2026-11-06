@@ -3,7 +3,7 @@
 // WebSocket live updates + presence, online/offline detection, and a one-tab lock.
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { ClientSnapshot, Notice, OpInput, Role, SyncClient, UndoManager } from '@driftboard/shared';
-import { API_URL, ApiError, api, cachedMe, deviceId } from './api';
+import { API_URL, ApiError, api, cachedMe, deviceId, saveMe } from './api';
 import { idbGet, idbSet } from './idb';
 
 // Bump when the shape stored in IndexedDB changes. Old cached board state is then
@@ -70,8 +70,22 @@ export function useBoard(boardId: string) {
         if (!got) return setStatus('locked');
       }
 
-      const me = cachedMe();
+      let me = cachedMe();
       const key = `board:${boardId}`;
+      // A valid session can exist without the local identity cache (fresh browser
+      // storage, cleared site data, or a board link opened straight after sign-in).
+      if (!me?.user?.id) {
+        try {
+          const session = await api<{ user?: unknown }>('/api/auth/get-session');
+          if (session?.user) {
+            me = { user: session.user };
+            saveMe(me);
+          }
+        } catch {
+          // Offline or the auth service is unavailable; the board fallback below
+          // still reports a useful sign-in message.
+        }
+      }
       let stored = await idbGet<Stored>(key);
       if (stored && stored.schema !== STORAGE_SCHEMA) stored = { ...stored, confirmed: undefined as any };
 

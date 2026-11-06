@@ -84,5 +84,5 @@ boardRoutes.get('/boards/:boardId/cards/:cardId/history', async c => {
   });
   const users = await prisma.user.findMany({ where: { id: { in: [...new Set(rows.map(r => r.actorId))] } }, select: { id: true, name: true } });
   const names = Object.fromEntries(users.map(u => [u.id, u.name]));
-  return c.json(rows.map(r => ({ ...toCommittedOp(r), actorName: names[r.actorId] ?? 'Unknown' })));
+  return c.json(rows.map(r => ({ ...toCommittedOp(r), actorName: names[r.actorId] ?? 'Former member' })));
 });

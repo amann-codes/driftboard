@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation';
 import type { WorkspaceUser } from '@/lib/workspace';
 import AccountMenu from './AccountMenu';
 import Brand, { BrandMark } from './Brand';
-import { CloseIcon, DashboardIcon, MenuIcon, OrganizationsIcon } from './icons';
+import { ChevronRightIcon, CloseIcon, DashboardIcon, MenuIcon, OrganizationsIcon } from './icons';
 import { FOCUS_RING, GHOST_BUTTON, ICON_BUTTON } from './styles';
 
 type Breadcrumb = { label: string; href: string };
@@ -144,16 +144,20 @@ function Shell({ title, breadcrumb, user, actions, children }: WorkspaceShellPro
             </span>
 
             <div className="min-w-0 flex-1">
-              {breadcrumb && (
-                <a
-                  href={breadcrumb.href}
-                  className={`hidden items-center gap-1 rounded text-xs font-medium text-drift-muted transition hover:text-drift-ink sm:inline-flex ${FOCUS_RING}`}
-                >
-                  {breadcrumb.label}
-                  <span aria-hidden>/</span>
-                </a>
-              )}
-              <h1 title={title} className="truncate text-base font-semibold tracking-[-0.02em] text-drift-ink sm:text-lg">{title}</h1>
+              <div className="flex min-w-0 items-center gap-1.5">
+                {breadcrumb && (
+                  <>
+                    <a
+                      href={breadcrumb.href}
+                      className={`hidden max-w-40 shrink-0 truncate rounded text-xs font-medium text-drift-muted transition hover:text-drift-ink sm:inline ${FOCUS_RING}`}
+                    >
+                      {breadcrumb.label}
+                    </a>
+                    <ChevronRightIcon className="hidden size-3.5 shrink-0 text-slate-300 sm:block" />
+                  </>
+                )}
+                <h1 title={title} className="truncate text-base font-semibold tracking-[-0.02em] text-drift-ink sm:text-lg">{title}</h1>
+              </div>
             </div>
 
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">

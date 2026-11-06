@@ -245,42 +245,41 @@ function OrganizationDetailPage({ organizationId }: { organizationId: string }) 
 
   return shell(
     <div className="space-y-8">
-      <section className="rounded-2xl border border-drift-line bg-white p-6">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-4">
-            <span className={`grid size-12 shrink-0 place-items-center rounded-xl text-sm font-bold ring-1 ${tint}`}>
+      <section className="overflow-hidden rounded-2xl border border-drift-line bg-white">
+        <div className="flex flex-col gap-5 p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex min-w-0 items-center gap-4">
+            <span className={`grid size-14 shrink-0 place-items-center rounded-2xl text-base font-bold ring-1 ${tint}`}>
               {initialsFor(data.name)}
             </span>
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="break-words text-xl font-semibold tracking-[-0.03em] text-drift-ink">{data.name}</h2>
-                <RolePill role={data.role} />
-              </div>
-              <p className="mt-1.5 text-xs text-drift-muted">
-                Created {created} <span className="px-1 text-slate-300">·</span> <MemberCount count={data.memberCount} />
-              </p>
+              <h2 className="break-words text-2xl font-semibold tracking-[-0.035em] text-drift-ink">{data.name}</h2>
+              <p className="mt-1 text-sm text-drift-muted">Created {created}</p>
             </div>
           </div>
-          {canSendInvite && (
-            <button type="button" onClick={() => setDialog('invite')} className={SECONDARY_BUTTON}>
-              <UserPlusIcon className="size-4" />
-              Invite members
-            </button>
-          )}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <RolePill role={data.role} />
+            <MemberCount count={data.memberCount} />
+            {canSendInvite && (
+              <button type="button" onClick={() => setDialog('invite')} className={SECONDARY_BUTTON}>
+                <UserPlusIcon className="size-4" />
+                Invite members
+              </button>
+            )}
+          </div>
         </div>
 
-        <div className="mt-6 grid grid-cols-3 gap-3">
+        <dl className="grid grid-cols-3 divide-x divide-drift-line border-t border-drift-line bg-drift-surface/60">
           {[
             { label: 'Projects', value: data.projectCount },
             { label: 'Boards', value: data.boardCount },
             { label: 'Members', value: data.memberCount },
           ].map(stat => (
-            <div key={stat.label} className="rounded-xl bg-drift-surface px-4 py-3">
-              <p className="text-xl font-semibold leading-none text-drift-ink">{stat.value}</p>
-              <p className="mt-1.5 text-[11px] font-medium uppercase tracking-[0.08em] text-drift-muted">{stat.label}</p>
+            <div key={stat.label} className="px-5 py-4">
+              <dt className="text-[11px] font-medium uppercase tracking-[0.08em] text-drift-muted">{stat.label}</dt>
+              <dd className="mt-1 text-xl font-semibold leading-none text-drift-ink">{stat.value}</dd>
             </div>
           ))}
-        </div>
+        </dl>
       </section>
 
       <section aria-labelledby="organization-projects">

@@ -1,6 +1,7 @@
 @layer theme, base, components, utilities;
 
 @import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(base);
 @import "tailwindcss/utilities.css" layer(utilities);
 
 @theme {
@@ -316,6 +317,19 @@ a { color: var(--accent); }
 }
 .auth-link:hover { text-decoration: underline; }
 
+.avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+}
+
 /* markdown */
 .md { font-size: 13.5px; line-height: 1.65; color: #334155; overflow-wrap: anywhere; }
 .md > :first-child { margin-top: 0; }
@@ -340,6 +354,18 @@ a { color: var(--accent); }
 .md pre code { background: transparent; padding: 0; }
 .md hr { border: 0; border-top: 1px solid #e2e8f0; margin: 1.2em 0; }
 .md ul.contains-task-list { list-style: none; padding-left: 0.25em; }
+.md li.task-list-item { list-style: none; }
+.md input[type="checkbox"] {
+  display: inline-block;
+  width: 0.95em;
+  height: 0.95em;
+  margin: 0 0.45em 0 0;
+  padding: 0;
+  border: 1px solid #cbd5e1;
+  border-radius: 3px;
+  vertical-align: -0.08em;
+  accent-color: #4f46e5;
+}
 
 /* toasts */
 .toasts { position: fixed; bottom: 16px; left: 16px; display: flex; flex-direction: column; gap: 8px; z-index: 20; max-width: 420px; }
